@@ -235,6 +235,8 @@ class IntelligentDriver(Junior):
         moveForward = True
 
         currPos = self.getPos() # the current 2D location of the AutoCar (refer util.py to convert it to tile (or grid cell) coordinate)
+        currPos = (util.xToCol(currPos[0]), util.yToRow(currPos[1]))
+        print(currPos)
         goalPos = self.checkPoints[chkPtsSoFar]
         # goalPos = (util.colToX(goalPos[0]), util.rowToY(goalPos[1]))
 
