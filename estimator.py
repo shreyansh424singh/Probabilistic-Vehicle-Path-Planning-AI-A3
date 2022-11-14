@@ -65,7 +65,8 @@ class Estimator(object):
             for col in range(self.belief.numCols):
                 dist = math.sqrt((util.colToX(col) - agentX) ** 2 + (util.rowToY(row) - agentY) ** 2)
                 prob_distr = util.pdf(dist, Const.SONAR_STD, observedDist)
-                self.belief.setProb(row, col, self.belief.getProb(row, col) * prob_distr)
+                self.belief.setProb(row, col, self.belief.getProb(row, col)* self.particles[(row, col)] * prob_distr)
+                # self.belief.setProb(row, col, self.particles[(row, col)] * prob_distr)
         self.belief.normalize()
 
         newBelief = util.Belief(self.belief.numRows, self.belief.numCols, value=0)
