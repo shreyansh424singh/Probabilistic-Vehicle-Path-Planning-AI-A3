@@ -14,8 +14,6 @@ from engine.model.layout import Layout
 from engine.model.car.junior import Junior
 from configparser import InterpolationMissingOptionError
 import random
-import time
-# import numpy as np
 
 # Class: Graph
 # -------------
@@ -28,61 +26,32 @@ class Graph(object):
 class PolicyIteration:
     def __init__(self, reward_function, transition_model, gamma, state_action_map):
         self.num_states = len(transition_model)
-        # self.num_actions = len(transition_model)
-        # Check reward nan to num
         self.reward_function = reward_function
-
         self.state_action_map = state_action_map
-
         self.transition_model = transition_model
         self.gamma = gamma
-
-        # self.values = [0 for _ in range(self.num_states)]
         self.values = reward_function.copy()
-
         self.policy = [0 for _ in range(self.num_states)]
-
         for i in range(self.num_states):
             self.policy[i] = random.choice(self.state_action_map[i])
 
 
-    def one_policy_evaluation(self):
-        change = 0
+    def update_val(self):
         for s in range(self.num_states):
-            # if(self.reward_function[])
-
-            t1 = self.values[s]
             temp = 0
             act = self.policy[s]
             t_prob = 1
             temp = t_prob*(self.reward_function[act] + self.gamma*self.values[act])
-
-
             self.values[s] = temp
-            change = max(change, abs(temp - t1))
-        return change
 
-    def run_policy_evaluation(self, threshold):
-        change = self.one_policy_evaluation()
-        c = 0
-        while c<1:
-            c+=1
-            change = self.one_policy_evaluation()
-            if change < threshold:
-                return
-
-    def run_policy_improvement(self):
-        update_policy_count = 0
+    def update_policy(self):
+        change = 0
         for s in range(self.num_states):
             temp = self.policy[s]
             v_list = {}
-
             for a in self.state_action_map[s]:
-                # p = self.transition_model[s][a]
                 p = 1
                 v_list[a] = p*(self.reward_function[a] + self.gamma*self.values[a])
-
-
             max = -1; loc = 0
             for key, val in v_list.items():
                 if(val > max):
@@ -92,39 +61,22 @@ class PolicyIteration:
                 self.policy[s] = loc            
 
             if temp != self.policy[s]:
-                update_policy_count += 1
+                change += 1
 
-        return update_policy_count
+        return change
 
     def train(self, iterations, ini_state, states_map):
         c = 0
-        threshold = 1e-10
-        self.run_policy_evaluation(threshold)
-        self.run_policy_improvement()
+        self.update_val()
+        self.update_policy()
         while c < iterations:
             c += 1
-            self.run_policy_evaluation(threshold)
-            new_policy_change = self.run_policy_improvement()
-            # print("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
-            # for i in range(len(states_map)):
-            #     print(f"loc: {states_map[i]} policy: {states_map[self.policy[i]]} value: {self.values[i]} ")
-            # print(f"change {new_policy_change} ))))))))) ")
+            self.update_val()
+            new_policy_change = self.update_policy()
             if new_policy_change == 0:
                 break
 
-        # print(f"************************************\n{self.policy}\n{self.values}\n************************************")
-
-        # for i in range(len(states_map)):
-        #     x1, y1 = states_map[i]
-        #     x2, y2 = states_map[ini_state]
-        #     if(abs(x1-x2)+abs(y1-y2) < 4):
-        #         print(f"loc: {states_map[i]} policy: {states_map[self.policy[i]]} value: {self.values[i]} reward: {self.reward_function[i]} ")
         return self.policy[ini_state]
-
-
-
-
-
 
 # Class: IntelligentDriver
 # ---------------------
@@ -136,7 +88,6 @@ class IntelligentDriver(Junior):
         self.burnInIterations = 30
         self.layout = layout
         self.states = []
-        # self.worldGraph = None
         self.worldGraph = self.createWorldGraph()
         self.checkPoints = self.layout.getCheckPoints() # a list of single tile locations corresponding to each checkpoint
         self.transProb = util.loadTransProb()
@@ -283,40 +234,24 @@ class IntelligentDriver(Junior):
                         rewards[self.states.index((row, col))] -= 50*belief.getProb(col, row) * (closeness - (abs(row-currPos[0]) + abs(col-currPos[1])))
                         if ((row, col+1) not in self.states) or ((row, col-1) not in self.states) or ((row+1, col) not in self.states) or ((row-1, col) not in self.states):
                             # rewards[self.states.index((row, col))] = -10
-                            rewards[self.states.index((row, col))] = -4 * (closeness - (abs(row-currPos[0]) + abs(col-currPos[1])))
+                            rewards[self.states.index((row, col))] = -5 * (closeness - (abs(row-currPos[0]) + abs(col-currPos[1])))
 
         
         # rewards[self.states.index(goalPos)] = 10.0
-        rewards[self.states.index(goalPos)] = 15 + abs(goalPos[0]-currPos[0])**3 + abs(goalPos[1]-currPos[1])**3
-        for d1 in [1, 0, -1]:
-            for d2 in [1, 0, -1]:
+        rewards[self.states.index(goalPos)] = 15 + abs(goalPos[0]-currPos[0])**2 + abs(goalPos[1]-currPos[1])**2
+        l = [1, 0, -1]
+        if(goalPos == (0, 0)): l = [2, 1, 0, -1, -2]
+        for d1 in l:
+            for d2 in l:
                 pos = (goalPos[0]+d1, goalPos[1]+d2)
                 if pos in self.states:
                     rewards[self.states.index(pos)] += 8
-
-
-        # print(f"currPos: {currPos} ckpt: {goalPos}")
-        # for i in range(len(self.states)):
-        #     x1, y1 = self.states[i]
-        #     x2, y2 = currPos
-        #     if(abs(x1-x2)+abs(y1-y2) < closeness):
-
-        #         val = 0 
-        #         for b in beliefOfOtherCars:
-        #             val += b.getProb(y1, x1)
-        #         if rewards[i] != 0.0:
-        #             print(f"loc: {self.states[i]} reward: {rewards[i]} ")
-
-        # print("$$$$$$$$$$$$$$$$$$$$$$$")
-        # print(rewards)
 
         policy_ite = PolicyIteration(rewards, self.transitions, 0.1, self.action_map)
 
         goal_state = policy_ite.train(1000, self.states.index(currPos), self.states)
 
         goalPos = self.states[goal_state]
-
-        # if abPos[0] - goalPos[0] == 1 and srr
 
         if abs(currPos[0] - goalPos[0]) == 1 and abs(currPos[1] - goalPos[1]) == 1:
             if (goalPos[0], currPos[1]) not in self.states:
@@ -326,18 +261,12 @@ class IntelligentDriver(Junior):
                 goalPos = (goalPos[0], currPos[1])
 
 
-        if( abs(currPos[0]-chkPos[0]) + abs(currPos[1] - chkPos[1]) < 4 and (currPos[0] == chkPos[0] or currPos[1] == chkPos[1])):
+        if( abs(currPos[0]-chkPos[0]) + abs(currPos[1] - chkPos[1]) < 4 and (currPos[0] == chkPos[0] == 0 or currPos[1] == chkPos[1] == 0 or (currPos[0]==1 and chkPos[0]==0) or (currPos[1]==1 and chkPos[1]==0))):
             goalPos = chkPos
 
 
-
-        # print(f"currPos: {currPos} goal: {goalPos}")
-
-        tt = [True, False, False]
+        tt = [True, False, False, False, False]
         moveForward = random.choice(tt)
-
-        # print(moveForward)
-        # time.sleep(10000)
 
         goalPos = (util.colToX(goalPos[0]), util.rowToY(goalPos[1]))
         return goalPos, moveForward

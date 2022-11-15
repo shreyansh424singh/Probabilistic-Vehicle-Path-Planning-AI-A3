@@ -4,76 +4,74 @@ from engine.const import Const
 import collections
 import math
 import random
-import os
 
 # this function gets a particle dictionary
 # and does samplig of particles.
-def weightedRandomChoice(weightDict):
-    weights = []
-    elems = []
-    # elem is (x,y) position
-    # weightDict[elem] is number of particles at that position
-    for elem in weightDict:
-        weights.append(weightDict[elem])
-        elems.append(elem)
-    total = sum(weights)
-    key = random.uniform(0, total)
-    runningTotal = 0.0
-    for i in range(len(weights)):
-        weight = weights[i]
-        runningTotal += weight
-        if runningTotal > key:
-            return elems[i]
+def sampling(prob_belief):
+    list1 = []
+    list2 = []
+    # loc is (x,y) position
+    # prob_belief[loc] is number of particles at that position
+    for loc in prob_belief:
+        list2.append(loc)
+        list1.append(prob_belief[loc])
+    f = random.uniform(0, sum(list1))
+    s = 0.0
+    for i in range(len(list1)):
+        a = list1[i]
+        s += a
+        if s > f:
+            return list2[i]
 
 
 # Class: Estimator
 #----------------------
-# Maintain and update a belief distribution over the probability of a car being in a tile.
+# Maintain and update a belief distribution over the probability of a car being in a block.
 class Estimator(object):
     def __init__(self, numRows: int, numCols: int):
-        self.NUM_PARTICLES = 500
+        self.total_particles = 200
 
         self.belief = util.Belief(numRows, numCols) 
-        self.transProb = util.loadTransProb()
-        self.transProbDict = dict()
-        for (oldTile, newTile) in self.transProb:
-            if not oldTile in self.transProbDict:
-                self.transProbDict[oldTile] = collections.defaultdict(int)
-            self.transProbDict[oldTile][newTile] = self.transProb[(oldTile, newTile)]
+
+        self.prob = util.loadTransProb()
+        self.dict_transition_prob = dict()
+        for (old_block, new_block) in self.prob:
+            if not old_block in self.dict_transition_prob:
+                self.dict_transition_prob[old_block] = collections.defaultdict(int)
+            self.dict_transition_prob[old_block][new_block] = self.prob[(old_block, new_block)]
 
         # Initialize the particles randomly.
-        # self.particles is dictionary (int, int) -> int
-        self.particles = collections.defaultdict(int)
-        potentialParticles = list(self.transProbDict.keys())
-        for i in range(self.NUM_PARTICLES):
-            particleIndex = int(random.random() * len(potentialParticles))
-            self.particles[potentialParticles[particleIndex]] += 1
+        # self.map_particle is dictionary (int, int) -> int
+        self.map_particle = collections.defaultdict(int)
+        old_particles = list(self.dict_transition_prob.keys())
+        for i in range(self.total_particles):
+            i = int(random.random() * len(old_particles))
+            self.map_particle[old_particles[i]] += 1
 
-        self.updateBelief()
+        self.normalizeBelief()
             
 
     # normalize and update self.belief
-    def updateBelief(self):
-        newBelief = util.Belief(self.belief.getNumRows(), self.belief.getNumCols(), 0)
-        for tile in self.particles:
-            newBelief.setProb(tile[0], tile[1], self.particles[tile])
-        newBelief.normalize()
-        self.belief = newBelief
+    def normalizeBelief(self):
+        updated_Belief = Belief(self.belief.getNumRows(), self.belief.getNumCols(), 0)
+        for block in self.map_particle:
+            updated_Belief.setProb(block[0], block[1], self.map_particle[block])
+        updated_Belief.normalize()
+        self.belief = updated_Belief
 
-    def parked(self, agentX, agentY, observedDist):
-        for row in range(self.belief.numRows):
-            for col in range(self.belief.numCols):
-                dist = math.sqrt((util.colToX(col) - agentX) ** 2 + (util.rowToY(row) - agentY) ** 2)
-                prob_distr = util.pdf(dist, Const.SONAR_STD, observedDist)
-                self.belief.setProb(row, col, self.belief.getProb(row, col)* self.particles[(row, col)] * prob_distr)
-                # self.belief.setProb(row, col, self.particles[(row, col)] * prob_distr)
+    def parked(self, posX, posY, observedDist):
+        for i in range(self.belief.numRows):
+            for j in range(self.belief.numCols):
+                dist = math.sqrt((util.colToX(j) - posX) ** 2 + (util.rowToY(i) - posY) ** 2)
+                prob_distr = pdf(dist, Const.SONAR_STD, observedDist)
+                self.belief.setProb(i, j, self.belief.getProb(i, j)* self.map_particle[(i, j)] * prob_distr)
         self.belief.normalize()
 
-        newBelief = util.Belief(self.belief.numRows, self.belief.numCols, value=0)
-        for oldTile, newTile in self.transProb:
-            newBelief.addProb(newTile[0], newTile[1], self.belief.getProb(*oldTile) * self.transProb[(oldTile, newTile)])
-        newBelief.normalize()
-        self.belief = newBelief
+        updated_Belief = util.Belief(self.belief.numRows, self.belief.numCols, value=0)
+        for old_block, new_block in self.prob:
+            updated_Belief.addProb(new_block[0], new_block[1], self.belief.getProb(*old_block) * self.prob[(old_block, new_block)])
+        updated_Belief.normalize()
+        self.belief = updated_Belief
 
     def estimate(self, posX: float, posY: float, observedDist: float, isParked: bool) -> None:
 
@@ -81,27 +79,26 @@ class Estimator(object):
             self.parked(posX, posY, observedDist)
             return
 
-        proposed = collections.defaultdict(float)
-        for row, col in self.particles:
-            dist = math.sqrt((util.colToX(col) - posX) ** 2 + (util.rowToY(row) - posY) ** 2)
-            prob_distr = util.pdf(dist, Const.SONAR_STD, observedDist)
-            proposed[(row, col)] = self.particles[(row, col)] * prob_distr
-        newParticles = collections.defaultdict(int)
-        for i in range(self.NUM_PARTICLES):
-            particle = weightedRandomChoice(proposed)
-            newParticles[particle] += 1
-        self.particles = newParticles
+        prob_Belief = collections.defaultdict(float)
+        for i, j in self.map_particle:
+            dist = math.sqrt((util.colToX(j) - posX) ** 2 + (util.rowToY(i) - posY) ** 2)
+            prob_distr = pdf(dist, Const.SONAR_STD, observedDist)
+            prob_Belief[(i, j)] = self.map_particle[(i, j)] * prob_distr
+        updated_belief = collections.defaultdict(int)
+        for i in range(self.total_particles):
+            i = sampling(prob_Belief)
+            updated_belief[i] += 1
+        self.map_particle = updated_belief
 
-        newParticles = collections.defaultdict(int)
-        for tile, value in self.particles.items():
-            if tile in self.transProbDict:
-                for _ in range(value):
-                    newWeightDict = self.transProbDict[tile]
-                    particle = weightedRandomChoice(newWeightDict)
-                    newParticles[particle] += 1
-        self.particles = newParticles
-        self.updateBelief()
-        # END_YOUR_CODE
+        updated_belief = collections.defaultdict(int)
+        for block, v in self.map_particle.items():
+            if block in self.dict_transition_prob:
+                for _ in range(v):
+                    new_prob_belief = self.dict_transition_prob[block]
+                    i = sampling(new_prob_belief)
+                    updated_belief[i] += 1
+        self.map_particle = updated_belief
+        self.normalizeBelief()
         return
 
     def getBelief(self) -> Belief:
