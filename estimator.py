@@ -82,8 +82,13 @@ class Estimator(object):
         prob_Belief = collections.defaultdict(float)
         for i, j in self.map_particle:
             dist = math.sqrt((util.colToX(j) - posX) ** 2 + (util.rowToY(i) - posY) ** 2)
+            # dist = abs(util.colToX(j) - posX) + abs(util.rowToY(i) - posY)
             prob_distr = pdf(dist, Const.SONAR_STD, observedDist)
-            prob_Belief[(i, j)] = self.map_particle[(i, j)] * prob_distr
+            surr_area = self.map_particle[(i, j)]
+            # surr_area = (self.map_particle[(i, j)] +
+            #             self.map_particle[(i+1, j)] + self.map_particle[(i-1, j)] + self.map_particle[(i, j-1)] + self.map_particle[(i, j+1)] +
+            #             self.map_particle[(i+1, j+1)] + self.map_particle[(i-1, j+1)] + self.map_particle[(i-1, j-1)] + self.map_particle[(i+1, j-1)])
+            prob_Belief[(i, j)] = surr_area * prob_distr
         updated_belief = collections.defaultdict(int)
         for i in range(self.total_particles):
             i = sampling(prob_Belief)

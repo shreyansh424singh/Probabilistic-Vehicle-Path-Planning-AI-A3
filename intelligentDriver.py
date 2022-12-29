@@ -14,6 +14,7 @@ from engine.model.layout import Layout
 from engine.model.car.junior import Junior
 from configparser import InterpolationMissingOptionError
 import random
+import math
 
 # Class: Graph
 # -------------
@@ -224,21 +225,36 @@ class IntelligentDriver(Junior):
 
         rewards = [0 for i in range(len(self.states))]
 
-        closeness = 4
+        closeness = 3
 
         for belief in beliefOfOtherCars:
             for row in range(self.layout.getBeliefRows()):
                 for col in range(self.layout.getBeliefCols()):
-                    if ((row, col) in self.states and (abs(row-currPos[0]) + abs(col-currPos[1]) < closeness)):
+                    if ((row, col) in self.states and math.sqrt(abs(row-currPos[0])**2 + abs(col-currPos[1])**2 < closeness)):
                         # rewards[self.states.index((row, col))] -= 50*belief.getProb(row, col) * (closeness - (abs(row-currPos[0]) + abs(col-currPos[1])))
                         rewards[self.states.index((row, col))] -= 50*belief.getProb(col, row) * (closeness - (abs(row-currPos[0]) + abs(col-currPos[1])))
-                        if ((row, col+1) not in self.states) or ((row, col-1) not in self.states) or ((row+1, col) not in self.states) or ((row-1, col) not in self.states):
-                            # rewards[self.states.index((row, col))] = -10
-                            rewards[self.states.index((row, col))] = -5 * (closeness - (abs(row-currPos[0]) + abs(col-currPos[1])))
-
+                        if (row+1, col) in self.states:
+                            rewards[self.states.index((row+1, col))] -= 5*belief.getProb(col, row+1) * (closeness - (abs(row+1-currPos[0]) + abs(col-currPos[1])))
+                        if (row-1, col) in self.states:
+                            rewards[self.states.index((row-1, col))] -= 5*belief.getProb(col, row-1) * (closeness - (abs(row-1-currPos[0]) + abs(col-currPos[1])))
+                        if (row, col+1) in self.states:
+                            rewards[self.states.index((row, col+1))] -= 5*belief.getProb(col+1, row) * (closeness - (abs(row-currPos[0]) + abs(col+1-currPos[1])))
+                        if (row, col-1) in self.states:
+                            rewards[self.states.index((row, col-1))] -= 5*belief.getProb(col-1, row) * (closeness - (abs(row-currPos[0]) + abs(col-1-currPos[1])))
+                        # if (row+1, col+1) in self.states:
+                        #     rewards[self.states.index((row+1, col+1))] -= 10*belief.getProb(col+1, row+1) * (closeness - (abs(row+1-currPos[0]) + abs(col+1-currPos[1])))
+                        # if (row-1, col-1) in self.states:
+                        #     rewards[self.states.index((row-1, col-1))] -= 10*belief.getProb(col-1, row-1) * (closeness - (abs(row-1-currPos[0]) + abs(col-1-currPos[1])))
+                        # if (row-1, col+1) in self.states:
+                        #     rewards[self.states.index((row-1, col+1))] -= 10*belief.getProb(col+1, row-1) * (closeness - (abs(row-1-currPos[0]) + abs(col+1-currPos[1])))
+                        # if (row+1, col-1) in self.states:
+                        #     rewards[self.states.index((row+1, col-1))] -= 10*belief.getProb(col-1, row+1) * (closeness - (abs(row+1-currPos[0]) + abs(col-1-currPos[1])))
+    
         
-        # rewards[self.states.index(goalPos)] = 10.0
         rewards[self.states.index(goalPos)] = 15 + abs(goalPos[0]-currPos[0])**2 + abs(goalPos[1]-currPos[1])**2
+        if self.layout.getBeliefRows()*self.layout.getBeliefCols() < 300:
+            rewards[self.states.index(goalPos)] = 10.0
+
         l = [1, 0, -1]
         if(goalPos == (0, 0)): l = [2, 1, 0, -1, -2]
         for d1 in l:
@@ -265,8 +281,17 @@ class IntelligentDriver(Junior):
             goalPos = chkPos
 
 
-        tt = [True, False, False, False, False]
+        tt = [True, False, False]
+        if self.layout.getBeliefRows()*self.layout.getBeliefCols() <=625:
+            tt = [True, False, False, False, False]
         moveForward = random.choice(tt)
+        # try:
+        #     if belief.getProb(currPos[1], currPos[0]) > belief.getProb(currPos[1], currPos[0]+1) + belief.getProb(currPos[1], currPos[0]-1) + belief.getProb(currPos[1]+1, currPos[0]) + belief.getProb(currPos[1]-1, currPos[0]) +belief.getProb(currPos[1]+1, currPos[0]) + belief.getProb(currPos[1], currPos[0]-1):
+        #         moveForward = True
+        # except:
+        #     moveForward = random.choice(tt)
+
+
 
         goalPos = (util.colToX(goalPos[0]), util.rowToY(goalPos[1]))
         return goalPos, moveForward
@@ -292,4 +317,3 @@ class IntelligentDriver(Junior):
         return actions
     
     
-
